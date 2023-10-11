@@ -10,7 +10,7 @@ import java.net.InetSocketAddress;
 
 public class Main {
     public static void main(String[] args) throws Exception {
-        HttpServer server = HttpServer.create(new InetSocketAddress(8000), 0);
+        final HttpServer server = HttpServer.create(new InetSocketAddress(8000), 0);
         server.createContext("/key", new TestHandler());
         server.setExecutor(null);
         server.start();
@@ -20,9 +20,12 @@ public class Main {
         @Override
         public void handle(HttpExchange t) throws IOException {
             if ("PUT".equals(t.getRequestMethod())) {
-                String response = "Sample response";
+                final String contextPath = t.getRequestURI().toString();
+                final String[] parts = contextPath.split("/");
+                assert parts.length == 4; // validation, unneeded
+                final String response = "key: " + parts[2] + "; value: " + parts[4];
                 t.sendResponseHeaders(200, response.length());
-                OutputStream os = t.getResponseBody();
+                final OutputStream os = t.getResponseBody();
                 os.write(response.getBytes());
                 os.close();
             } else {
