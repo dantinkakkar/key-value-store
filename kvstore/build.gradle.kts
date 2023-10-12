@@ -14,6 +14,12 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter")
 }
 
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(21))
+    }
+}
+
 tasks.test {
     useJUnitPlatform()
 }
@@ -24,4 +30,8 @@ tasks.jar {
     }
 
     from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) })
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    options.compilerArgs.add("--enable-preview")
 }

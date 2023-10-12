@@ -6,7 +6,7 @@ import com.sun.net.httpserver.HttpServer;
 
 import java.io.*;
 import java.net.InetSocketAddress;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.HashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -14,12 +14,12 @@ import java.util.concurrent.TimeUnit;
 public class HTTPInterface {
 
     public static void main(String[] args) throws Exception {
-        final int DURABILITY_GUARANTEE_IN_MS = 50;
+        final long DURABILITY_GUARANTEE_IN_MS = Long.parseLong(args[0]);
         final File storeFile = new File("store");
         if (!storeFile.exists()) {
             storeFile.createNewFile();
         }
-        final BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(storeFile, true), DURABILITY_GUARANTEE_IN_MS*15728634);
+        final BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(storeFile, true), ((Long) Math.min(DURABILITY_GUARANTEE_IN_MS*15728634, Integer.MAX_VALUE - 9)).intValue());
         final ScheduledExecutorService flushService = Executors.newSingleThreadScheduledExecutor();
         flushService.scheduleAtFixedRate(new Thread(() -> {
             try {
@@ -28,14 +28,15 @@ public class HTTPInterface {
                 throw new RuntimeException(e);
             }
         }), 0, DURABILITY_GUARANTEE_IN_MS/2, TimeUnit.MILLISECONDS);
-        final KeyValueStore keyValueStore = new KeyValueStore(new ConcurrentHashMap<>(), bufferedWriter);
+        final KeyValueStore keyValueStore = new KeyValueStore(new HashMap<>(), bufferedWriter);
         final HttpServer server = HttpServer.create(new InetSocketAddress(8000), 0);
         server.createContext("/key", new StoreHandler(keyValueStore));
-        server.setExecutor(Executors.newCachedThreadPool());
+        server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.start();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {
                 bufferedWriter.close();
+                flushService.close();
             } catch (IOException e) {
                 e.printStackTrace();
             }

@@ -3,6 +3,7 @@ counter = 0
 request = function()
     wrk.method = "PUT"
     wrk.headers["Content-Type"] = "application/json"
+    wrk.headers["Connection"] = "Keep-Alive"
     counter = (counter + 1)
     counter_str = tostring(counter)
     key = "key-" .. counter_str

@@ -1,14 +1,14 @@
 package com.sahaj;
 
 import java.io.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.HashMap;
 
 public class KeyValueStore {
 
-    private final ConcurrentHashMap<String, String> underlyingStore;
+    private final HashMap<String, String> underlyingStore;
     private final BufferedWriter writer;
 
-    public KeyValueStore(final ConcurrentHashMap<String, String> underlyingStoreImpl, final BufferedWriter writerImpl) {
+    public KeyValueStore(final HashMap<String, String> underlyingStoreImpl, final BufferedWriter writerImpl) {
         this.underlyingStore = underlyingStoreImpl;
         this.writer = writerImpl;
     }
