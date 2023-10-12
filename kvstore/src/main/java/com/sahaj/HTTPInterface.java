@@ -43,8 +43,6 @@ public class HTTPInterface {
         }));
     }
 
-    private
-
     static class StoreHandler implements HttpHandler {
         private final KeyValueStore store;
 
