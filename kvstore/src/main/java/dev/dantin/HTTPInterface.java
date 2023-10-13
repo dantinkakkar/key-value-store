@@ -3,12 +3,10 @@ package dev.dantin;
 import io.undertow.Undertow;
 import javafx.util.Pair;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -30,7 +28,9 @@ public class HTTPInterface {
             final File file = new File("store" + i);
             if (!file.exists()) file.createNewFile();
             stores.add(file);
-            writers.add(new BufferedWriter(new FileWriter(file, true), ((Long) bufferSize).intValue() / storesToUse));
+            final OutputStreamWriter osWriter = new OutputStreamWriter(Files.newOutputStream(Path.of(file.toURI()), StandardOpenOption.APPEND, StandardOpenOption.DSYNC));
+            final BufferedWriter writer = new BufferedWriter(osWriter, ((Long) bufferSize).intValue() / storesToUse);
+            writers.add(writer);
             initializeStores(file, underlyingMap);
         }
         final ScheduledExecutorService flushService = Executors.newSingleThreadScheduledExecutor();
