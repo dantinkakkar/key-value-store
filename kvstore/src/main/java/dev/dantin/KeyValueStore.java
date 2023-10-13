@@ -1,4 +1,4 @@
-package com.sahaj;
+package dev.dantin;
 
 import javafx.util.Pair;
 

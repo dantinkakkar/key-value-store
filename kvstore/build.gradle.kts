@@ -2,7 +2,7 @@ plugins {
     id("java")
 }
 
-group = "com.sahaj"
+group = "dev.dantin"
 version = "1.0-SNAPSHOT"
 
 repositories {
@@ -30,7 +30,7 @@ tasks.jar {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
     manifest {
-        attributes["Main-Class"] = "com.sahaj.HTTPInterface"
+        attributes["Main-Class"] = "dev.dantin.HTTPInterface"
     }
 
     from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) })
