@@ -43,3 +43,4 @@ bin/
 
 ### Transactional files ###
 store*
+!StoreHandler.java
