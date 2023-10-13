@@ -28,6 +28,7 @@ public class HTTPInterface {
             if (!file.exists()) file.createNewFile();
             stores.add(file);
             writers.add(new BufferedWriter(new FileWriter(file, true),((Long) bufferSize).intValue()/storesToUse));
+            initializeStores(file, underlyingMap);
         }
         final ScheduledExecutorService flushService = Executors.newSingleThreadScheduledExecutor();
         flushService.scheduleAtFixedRate(new Thread(() -> {
