@@ -1,25 +1,26 @@
 package com.sahaj;
 
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
-import com.sun.net.httpserver.HttpServer;
+import io.undertow.Undertow;
+import io.undertow.server.HttpHandler;
+import io.undertow.server.HttpServerExchange;
 
 import java.io.*;
-import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.file.*;
 import java.util.HashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
 public class HTTPInterface {
 
     public static void main(String[] args) throws Exception {
-        final long DURABILITY_GUARANTEE_IN_MS = Long.parseLong(args[0]);
+        final long durabilityInMs = Long.parseLong(args[0]);
+        final long bufferSize = (durabilityInMs/2)*3140000 < 0 ? Integer.MAX_VALUE - 8 : (durabilityInMs/2)*3140000;
         final File storeFile = new File("store");
         if (!storeFile.exists()) {
             storeFile.createNewFile();
         }
-        final BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(storeFile, true), ((Long) Math.min(DURABILITY_GUARANTEE_IN_MS*15728634, Integer.MAX_VALUE - 9)).intValue());
+        final BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(storeFile, true),
+                ((Long) bufferSize).intValue());
         final ScheduledExecutorService flushService = Executors.newSingleThreadScheduledExecutor();
         flushService.scheduleAtFixedRate(new Thread(() -> {
             try {
@@ -27,11 +28,13 @@ public class HTTPInterface {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-        }), 0, DURABILITY_GUARANTEE_IN_MS/2, TimeUnit.MILLISECONDS);
+        }), 0, durabilityInMs/2, TimeUnit.MILLISECONDS);
         final KeyValueStore keyValueStore = new KeyValueStore(new HashMap<>(), bufferedWriter);
-        final HttpServer server = HttpServer.create(new InetSocketAddress(8000), 0);
-        server.createContext("/key", new StoreHandler(keyValueStore));
-        server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
+        Undertow server = Undertow
+                .builder()
+                .addHttpListener(8000, "localhost")
+                .setHandler(new StoreHandler(keyValueStore))
+                .build();
         server.start();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {
@@ -51,34 +54,29 @@ public class HTTPInterface {
         }
 
         @Override
-        public void handle(HttpExchange t) throws IOException {
-            final String contextPath = t.getRequestURI().toString();
+        public void handleRequest(HttpServerExchange exchange) throws Exception {
+            final String contextPath = exchange.getRequestURI();
             final String[] parts = contextPath.split("/");
-            t.getResponseHeaders().add("Connection", "Keep-Alive");
-            switch (t.getRequestMethod()) {
-                case "GET" -> handleGet(t, parts[2]);
-                case "PUT" -> handlePut(t, parts[2], parts[4]);
-                default -> handleUnsupported(t);
+            switch (exchange.getRequestMethod().toString()) {
+                case "GET" -> handleGet(exchange, parts[2]);
+                case "PUT" -> handlePut(exchange, parts[2], parts[4]);
+                default -> handleUnsupported(exchange);
             }
         }
 
-        private void handlePut(final HttpExchange t, final String key, final String value) throws IOException {
+        private void handlePut(final HttpServerExchange t, final String key, final String value) throws IOException {
             store.writeValue(key, value);
-            t.sendResponseHeaders(200, 0);
-            t.close();
+            t.getResponseSender().close();
         }
 
-        private void handleGet(final HttpExchange t, final String key) throws IOException {
+        private void handleGet(final HttpServerExchange t, final String key) {
             final String value = store.getValue(key);
-            t.sendResponseHeaders(200, value.getBytes().length);
-            final OutputStream os = t.getResponseBody();
-            os.write(value.getBytes());
-            os.close();
+            t.getResponseSender().send(ByteBuffer.wrap(value.getBytes()));
         }
 
-        private void handleUnsupported(final HttpExchange t) throws IOException {
-            t.sendResponseHeaders(405, 0);
-            t.close();
+        private void handleUnsupported(final HttpServerExchange t) {
+            t.setStatusCode(405);
+            t.getResponseSender().close();
         }
     }
 }

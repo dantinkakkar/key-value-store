@@ -10,6 +10,7 @@ repositories {
 }
 
 dependencies {
+    implementation("io.undertow:undertow-core:2.3.8.Final")
     testImplementation(platform("org.junit:junit-bom:5.9.1"))
     testImplementation("org.junit.jupiter:junit-jupiter")
 }
@@ -25,6 +26,9 @@ tasks.test {
 }
 
 tasks.jar {
+    
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
     manifest {
         attributes["Main-Class"] = "com.sahaj.HTTPInterface"
     }
