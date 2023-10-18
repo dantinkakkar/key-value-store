@@ -16,10 +16,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-public class KeyValueStore {
+public class KeyValueStore implements FlushStrategy {
 
     private Map<String, Pair<Long, String>> underlyingStore;
-    private BufferedWriter writer;
+    protected BufferedWriter writer;
     private ScheduledExecutorService flushService;
     private final long flushDuration;
     private static final int MAX_APPEND_COUNT = 30000;
@@ -44,6 +44,7 @@ public class KeyValueStore {
             try {
                 writer.write(key + ":" + value + ":" + time);
                 writer.newLine();
+                doWithWriter(writer);
                 appendCount++;
                 return time > oldTime ? new Pair<>(time, value) : oldValue;
             } catch (IOException e) {
@@ -80,22 +81,27 @@ public class KeyValueStore {
             fileWriter.close();
             underlyingStore = new ConcurrentHashMap<>();
             writer.close();
-            flushService.shutdownNow();
             File wal = new File("store");
             wal.delete();
             wal.createNewFile();
-            writer = new BufferedWriter(new OutputStreamWriter(Files.newOutputStream(
-                    Path.of("store"), StandardOpenOption.APPEND, StandardOpenOption.DSYNC
-            )));
-            flushService = Executors.newSingleThreadScheduledExecutor();
-            flushService.scheduleAtFixedRate(new Thread(() -> {
-                try {
-                    writer.flush();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }), 0, flushDuration, TimeUnit.MILLISECONDS);
+            initWalWriter();
             appendCount = 0;
         }
+    }
+
+    protected void initWalWriter() throws IOException {
+        final Long bufSize = flushDuration * 3140000 < 0 ? Integer.MAX_VALUE - 8 : flushDuration * 3140000;
+        flushService.shutdownNow();
+        writer = new BufferedWriter(new OutputStreamWriter(Files.newOutputStream(
+                Path.of("store"), StandardOpenOption.APPEND, StandardOpenOption.DSYNC
+        )), bufSize.intValue());
+        flushService = Executors.newSingleThreadScheduledExecutor();
+        flushService.scheduleAtFixedRate(new Thread(() -> {
+            try {
+                writer.flush();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }), 0, flushDuration, TimeUnit.MILLISECONDS);
     }
 }

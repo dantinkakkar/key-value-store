@@ -24,18 +24,25 @@ public class HTTPInterface {
         final Map<String, Pair<Long, String>> underlyingMap = new ConcurrentHashMap<>();
         final File wal = new File("store");
         if (!wal.exists()) wal.createNewFile();
-        final OutputStreamWriter osWriter = new OutputStreamWriter(Files.newOutputStream(Path.of("store"), StandardOpenOption.APPEND, StandardOpenOption.DSYNC));
-        final BufferedWriter writer = new BufferedWriter(osWriter, ((Long) bufferSize).intValue());
         initializeStores(wal, underlyingMap);
+        final OutputStreamWriter osWriter = new OutputStreamWriter(Files.newOutputStream(Path.of("store"), StandardOpenOption.APPEND, StandardOpenOption.DSYNC));
+        final BufferedWriter writer;
+        final KeyValueStore keyValueStore;
         final ScheduledExecutorService flushService = Executors.newSingleThreadScheduledExecutor();
-        flushService.scheduleAtFixedRate(new Thread(() -> {
-            try {
-                writer.flush();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }), 0, durabilityInMs / 2, TimeUnit.MILLISECONDS);
-        final KeyValueStore keyValueStore = new KeyValueStore(underlyingMap, writer, flushService, durabilityInMs / 2);
+        if (durabilityInMs > 0) {
+            writer = new BufferedWriter(osWriter, ((Long) bufferSize).intValue());
+            flushService.scheduleAtFixedRate(new Thread(() -> {
+                try {
+                    writer.flush();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }), 0, durabilityInMs / 2, TimeUnit.MILLISECONDS);
+            keyValueStore = new KeyValueStore(underlyingMap, writer, flushService, durabilityInMs / 2);
+        } else {
+            writer = new BufferedWriter(osWriter, 100);
+            keyValueStore = new InstantlyDurableKeyValueStore(underlyingMap, writer, flushService, durabilityInMs / 2);
+        }
         final Undertow server = Undertow
                 .builder()
                 .addHttpListener(8000, "localhost")
