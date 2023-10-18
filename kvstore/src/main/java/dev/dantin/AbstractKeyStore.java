@@ -11,13 +11,12 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-public class KeyValueStore {
-
+public abstract class AbstractKeyStore {
     protected Map<String, Pair<Long, String>> underlyingStore;
     protected BufferedWriter writer;
     private ScheduledExecutorService flushService;
@@ -25,7 +24,7 @@ public class KeyValueStore {
     private static final int MAX_APPEND_COUNT = 30000;
     protected int appendCount;
 
-    public KeyValueStore(
+    public AbstractKeyStore(
             final Map<String, Pair<Long, String>> underlyingStoreImpl,
             final long flushDuration
     ) throws IOException {
@@ -77,7 +76,8 @@ public class KeyValueStore {
                 StandardOpenOption.APPEND,
                 StandardOpenOption.SYNC
         )), 1024*1024*30);
-        for (String k: _store.keySet()) {
+        final List<String> sortedKeys = _store.keySet().stream().sorted().toList();
+        for (String k: sortedKeys) {
             fileWriter.write(k+":"+_store.get(k).getValue()+":"+_store.get(k).getKey());
             fileWriter.newLine();
         }
@@ -92,7 +92,7 @@ public class KeyValueStore {
         writer = new BufferedWriter(new OutputStreamWriter(Files.newOutputStream(
                 Path.of("store"), StandardOpenOption.APPEND, StandardOpenOption.DSYNC
         )), (int) bufSize);
-        underlyingStore = new TreeMap<>();
+        underlyingStore = new ConcurrentHashMap<>();
         appendCount = 0;
         if (flushService != null) flushService.shutdownNow();
         flushService = Executors.newSingleThreadScheduledExecutor();

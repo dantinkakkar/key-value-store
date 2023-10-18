@@ -7,13 +7,14 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class HTTPInterface {
 
     public static void main(String[] args) throws Exception {
         final long durabilityInMs = Long.parseLong(args[0]);
-        final Map<String, Pair<Long, String>> underlyingMap = new ConcurrentHashMap<>();
+        final Map<String, Pair<Long, String>> underlyingMap = new TreeMap<>();
         final File wal = new File("store");
         if (!wal.exists()) wal.createNewFile();
         initializeStores(wal, underlyingMap);

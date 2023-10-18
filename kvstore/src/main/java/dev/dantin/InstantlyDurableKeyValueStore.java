@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class InstantlyDurableKeyValueStore extends KeyValueStore {
@@ -34,7 +35,7 @@ public class InstantlyDurableKeyValueStore extends KeyValueStore {
         writer = new BufferedWriter(new OutputStreamWriter(Files.newOutputStream(
                 Path.of("store"), StandardOpenOption.APPEND, StandardOpenOption.DSYNC
         )), 100);
-        underlyingStore = new ConcurrentHashMap<>();
+        underlyingStore = new TreeMap<>();
         appendCount = 0;
     }
 
