@@ -3,6 +3,7 @@ package dev.dantin;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.HttpServerExchange;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 
 class StoreHandler implements HttpHandler {
@@ -13,7 +14,7 @@ class StoreHandler implements HttpHandler {
     }
 
     @Override
-    public void handleRequest(HttpServerExchange exchange) {
+    public void handleRequest(HttpServerExchange exchange) throws IOException {
         final String contextPath = exchange.getRequestURI();
         final String[] parts = contextPath.split("/");
         switch (exchange.getRequestMethod().toString()) {
@@ -23,7 +24,7 @@ class StoreHandler implements HttpHandler {
         }
     }
 
-    private void handlePut(final HttpServerExchange t, final String key, final String value) {
+    private void handlePut(final HttpServerExchange t, final String key, final String value) throws IOException {
         final long currentTime = System.nanoTime();
         store.writeValue(key, value, currentTime);
         t.getResponseSender().close();

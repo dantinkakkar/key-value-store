@@ -18,12 +18,12 @@ import java.util.concurrent.TimeUnit;
 
 public class KeyValueStore {
 
-    private Map<String, Pair<Long, String>> underlyingStore;
+    protected Map<String, Pair<Long, String>> underlyingStore;
     protected BufferedWriter writer;
     private ScheduledExecutorService flushService;
     private final long flushDuration;
     private static final int MAX_APPEND_COUNT = 30000;
-    private int appendCount;
+    protected int appendCount;
 
     public KeyValueStore(
             final Map<String, Pair<Long, String>> underlyingStoreImpl,
@@ -35,7 +35,7 @@ public class KeyValueStore {
         initWalWriter();
     }
 
-    synchronized public void writeValue(String key, String value, long time) {
+    synchronized public void writeValue(String key, String value, long time) throws IOException {
         underlyingStore.compute(key, (__, oldValue) -> {
             final long oldTime = oldValue != null ? oldValue.getKey() : 0;
             try {
@@ -50,11 +50,14 @@ public class KeyValueStore {
             }
         });
         if (appendCount == MAX_APPEND_COUNT) {
-            try {
-                writeToSSTable();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            new Thread(() -> {
+                try {
+                    writeToSSTable(underlyingStore);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }).start();
+            initWalWriter();
         }
     }
 
@@ -67,37 +70,32 @@ public class KeyValueStore {
         flushService.close();
     }
 
-    private void writeToSSTable() throws IOException {
-        if (appendCount == MAX_APPEND_COUNT) {
-            final BufferedWriter fileWriter = new BufferedWriter(new OutputStreamWriter(Files.newOutputStream(
-                    Path.of("sstable_"+System.currentTimeMillis()),
-                    StandardOpenOption.CREATE,
-                    StandardOpenOption.APPEND,
-                    StandardOpenOption.SYNC
-            )), 1024*1024*30);
-            final List<String> sortedKeys = underlyingStore.keySet().stream().sorted().toList();
-            for (String k: sortedKeys) {
-                fileWriter.write(k+":"+underlyingStore.get(k).getValue()+":"+underlyingStore.get(k).getKey());
-                fileWriter.newLine();
-            }
-            fileWriter.close();
-            underlyingStore = new ConcurrentHashMap<>();
-            writer.close();
-            File wal = new File("store");
-            wal.delete();
-            wal.createNewFile();
-            initWalWriter();
-            appendCount = 0;
-            underlyingStore = new ConcurrentHashMap<>();
+    private static void writeToSSTable(final Map<String, Pair<Long, String>> _store) throws IOException {
+        final BufferedWriter fileWriter = new BufferedWriter(new OutputStreamWriter(Files.newOutputStream(
+                Path.of("sstable_"+System.currentTimeMillis()),
+                StandardOpenOption.CREATE,
+                StandardOpenOption.APPEND,
+                StandardOpenOption.SYNC
+        )), 1024*1024*30);
+        final List<String> sortedKeys = _store.keySet().stream().sorted().toList();
+        for (String k: sortedKeys) {
+            fileWriter.write(k+":"+_store.get(k).getValue()+":"+_store.get(k).getKey());
+            fileWriter.newLine();
         }
+        fileWriter.close();
     }
 
     protected void initWalWriter() throws IOException {
+        File wal = new File("store");
+        wal.delete();
+        wal.createNewFile();
         final long bufSize = flushDuration * 3140000 < 0 ? Integer.MAX_VALUE - 8 : flushDuration * 3140000;
-        if (flushService != null) flushService.shutdownNow();
         writer = new BufferedWriter(new OutputStreamWriter(Files.newOutputStream(
                 Path.of("store"), StandardOpenOption.APPEND, StandardOpenOption.DSYNC
         )), (int) bufSize);
+        underlyingStore = new ConcurrentHashMap<>();
+        appendCount = 0;
+        if (flushService != null) flushService.shutdownNow();
         flushService = Executors.newSingleThreadScheduledExecutor();
         flushService.scheduleAtFixedRate(new Thread(() -> {
             try {
