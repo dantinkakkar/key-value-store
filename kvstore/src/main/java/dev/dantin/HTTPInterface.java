@@ -3,12 +3,13 @@ package dev.dantin;
 import io.undertow.Undertow;
 import javafx.util.Pair;
 
-import java.io.*;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
@@ -21,9 +22,11 @@ public class HTTPInterface {
         final long durabilityInMs = Long.parseLong(args[0]);
         final long bufferSize = (durabilityInMs / 2) * 3140000 < 0 ? Integer.MAX_VALUE - 8 : (durabilityInMs / 2) * 3140000;
         final Map<String, Pair<Long, String>> underlyingMap = new ConcurrentHashMap<>();
+        final File wal = new File("store");
+        if (!wal.exists()) wal.createNewFile();
         final OutputStreamWriter osWriter = new OutputStreamWriter(Files.newOutputStream(Path.of("store"), StandardOpenOption.APPEND, StandardOpenOption.DSYNC));
         final BufferedWriter writer = new BufferedWriter(osWriter, ((Long) bufferSize).intValue());
-        initializeStores(new File("store"), underlyingMap);
+        initializeStores(wal, underlyingMap);
         final ScheduledExecutorService flushService = Executors.newSingleThreadScheduledExecutor();
         flushService.scheduleAtFixedRate(new Thread(() -> {
             try {
@@ -32,7 +35,7 @@ public class HTTPInterface {
                 throw new RuntimeException(e);
             }
         }), 0, durabilityInMs / 2, TimeUnit.MILLISECONDS);
-        final KeyValueStore keyValueStore = new KeyValueStore(underlyingMap, writer);
+        final KeyValueStore keyValueStore = new KeyValueStore(underlyingMap, writer, flushService, durabilityInMs / 2);
         final Undertow server = Undertow
                 .builder()
                 .addHttpListener(8000, "localhost")
