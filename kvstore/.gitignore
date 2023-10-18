@@ -45,3 +45,4 @@ bin/
 store*
 !StoreHandler.java
 !agent.jar
+sstable_*
