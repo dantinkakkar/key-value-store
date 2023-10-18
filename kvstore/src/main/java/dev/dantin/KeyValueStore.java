@@ -10,17 +10,16 @@ import java.util.concurrent.ThreadLocalRandom;
 public class KeyValueStore {
 
     private final Map<String, Pair<Long, String>> underlyingStore;
-    private final List<BufferedWriter> writers;
+    private final BufferedWriter writer;
     public KeyValueStore(
             final Map<String, Pair<Long, String>> underlyingStoreImpl,
-            final List<BufferedWriter> writers
+            final BufferedWriter writer
             ) {
         this.underlyingStore = underlyingStoreImpl;
-        this.writers = writers;
+        this.writer = writer;
     }
 
     public void writeValue(String key, String value, long time) {
-        BufferedWriter writer = writers.get(ThreadLocalRandom.current().nextInt(0, writers.size()));
         synchronized (writer) {
             underlyingStore.compute(key, (__, oldValue) -> {
                 final long oldTime = oldValue != null ? oldValue.getKey() : 0;

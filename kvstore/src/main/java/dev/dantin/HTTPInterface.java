@@ -19,29 +19,20 @@ public class HTTPInterface {
 
     public static void main(String[] args) throws Exception {
         final long durabilityInMs = Long.parseLong(args[0]);
-        final short storesToUse = Short.parseShort(args[1]);
         final long bufferSize = (durabilityInMs / 2) * 3140000 < 0 ? Integer.MAX_VALUE - 8 : (durabilityInMs / 2) * 3140000;
         final Map<String, Pair<Long, String>> underlyingMap = new ConcurrentHashMap<>();
-        final List<File> stores = new ArrayList<>();
-        final List<BufferedWriter> writers = new ArrayList<>();
-        for (short i = 0; i < storesToUse; i++) {
-            final File file = new File("store" + i);
-            if (!file.exists()) file.createNewFile();
-            stores.add(file);
-            final OutputStreamWriter osWriter = new OutputStreamWriter(Files.newOutputStream(Path.of(file.toURI()), StandardOpenOption.APPEND, StandardOpenOption.DSYNC));
-            final BufferedWriter writer = new BufferedWriter(osWriter, ((Long) bufferSize).intValue() / storesToUse);
-            writers.add(writer);
-            initializeStores(file, underlyingMap);
-        }
+        final OutputStreamWriter osWriter = new OutputStreamWriter(Files.newOutputStream(Path.of("store"), StandardOpenOption.APPEND, StandardOpenOption.DSYNC));
+        final BufferedWriter writer = new BufferedWriter(osWriter, ((Long) bufferSize).intValue());
+        initializeStores(new File("store"), underlyingMap);
         final ScheduledExecutorService flushService = Executors.newSingleThreadScheduledExecutor();
         flushService.scheduleAtFixedRate(new Thread(() -> {
             try {
-                for (BufferedWriter w : writers) w.flush();
+                writer.flush();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         }), 0, durabilityInMs / 2, TimeUnit.MILLISECONDS);
-        final KeyValueStore keyValueStore = new KeyValueStore(underlyingMap, writers);
+        final KeyValueStore keyValueStore = new KeyValueStore(underlyingMap, writer);
         final Undertow server = Undertow
                 .builder()
                 .addHttpListener(8000, "localhost")
@@ -50,7 +41,7 @@ public class HTTPInterface {
         server.start();
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {
-                for (BufferedWriter w : writers) w.close();
+                writer.close();
                 flushService.close();
             } catch (IOException e) {
                 e.printStackTrace();
