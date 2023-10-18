@@ -9,9 +9,8 @@ import java.io.OutputStreamWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -50,9 +49,10 @@ public class KeyValueStore {
             }
         });
         if (appendCount == MAX_APPEND_COUNT) {
+            final Map<String, Pair<Long, String>> something = underlyingStore;
             new Thread(() -> {
                 try {
-                    writeToSSTable(underlyingStore);
+                    writeToSSTable(something);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
@@ -77,10 +77,14 @@ public class KeyValueStore {
                 StandardOpenOption.APPEND,
                 StandardOpenOption.SYNC
         )), 1024*1024*30);
-        for (String k: _store.keySet()) {
-            fileWriter.write(k+":"+_store.get(k).getValue()+":"+_store.get(k).getKey());
-            fileWriter.newLine();
-        }
+        _store.keySet().stream().sorted().forEach(k -> {
+            try {
+                fileWriter.write(k+":"+_store.get(k).getValue()+":"+_store.get(k).getKey());
+                fileWriter.newLine();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
         fileWriter.close();
     }
 
@@ -92,7 +96,7 @@ public class KeyValueStore {
         writer = new BufferedWriter(new OutputStreamWriter(Files.newOutputStream(
                 Path.of("store"), StandardOpenOption.APPEND, StandardOpenOption.DSYNC
         )), (int) bufSize);
-        underlyingStore = new TreeMap<>();
+        underlyingStore = new ConcurrentHashMap<>();
         appendCount = 0;
         if (flushService != null) flushService.shutdownNow();
         flushService = Executors.newSingleThreadScheduledExecutor();

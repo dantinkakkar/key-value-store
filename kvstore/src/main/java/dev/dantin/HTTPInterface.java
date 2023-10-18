@@ -14,7 +14,7 @@ public class HTTPInterface {
 
     public static void main(String[] args) throws Exception {
         final long durabilityInMs = Long.parseLong(args[0]);
-        final Map<String, Pair<Long, String>> underlyingMap = new TreeMap<>();
+        final Map<String, Pair<Long, String>> underlyingMap = new ConcurrentHashMap<>();
         final File wal = new File("store");
         if (!wal.exists()) wal.createNewFile();
         initializeStores(wal, underlyingMap);
