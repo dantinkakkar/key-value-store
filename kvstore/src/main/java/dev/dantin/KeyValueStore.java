@@ -19,20 +19,18 @@ public class KeyValueStore {
         this.writer = writer;
     }
 
-    public void writeValue(String key, String value, long time) {
-        synchronized (writer) {
-            underlyingStore.compute(key, (__, oldValue) -> {
-                final long oldTime = oldValue != null ? oldValue.getKey() : 0;
-                try {
-                    writer.write(key + ":" + value + ":" + time);
-                    writer.newLine();
-                    return time > oldTime ? new Pair<>(time, value) : oldValue;
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    return oldValue;
-                }
-            });
-        }
+    synchronized public void writeValue(String key, String value, long time) {
+        underlyingStore.compute(key, (__, oldValue) -> {
+            final long oldTime = oldValue != null ? oldValue.getKey() : 0;
+            try {
+                writer.write(key + ":" + value + ":" + time);
+                writer.newLine();
+                return time > oldTime ? new Pair<>(time, value) : oldValue;
+            } catch (IOException e) {
+                e.printStackTrace();
+                return oldValue;
+            }
+        });
     }
 
     public String getValue(String key) {

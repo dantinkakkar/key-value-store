@@ -22,17 +22,24 @@ public class HTTPInterface {
         final long bufferSize = (durabilityInMs / 2) * 3140000 < 0 ? Integer.MAX_VALUE - 8 : (durabilityInMs / 2) * 3140000;
         final Map<String, Pair<Long, String>> underlyingMap = new ConcurrentHashMap<>();
         final OutputStreamWriter osWriter = new OutputStreamWriter(Files.newOutputStream(Path.of("store"), StandardOpenOption.APPEND, StandardOpenOption.DSYNC));
-        final BufferedWriter writer = new BufferedWriter(osWriter, ((Long) bufferSize).intValue());
+        final BufferedWriter writer;
         initializeStores(new File("store"), underlyingMap);
         final ScheduledExecutorService flushService = Executors.newSingleThreadScheduledExecutor();
-        flushService.scheduleAtFixedRate(new Thread(() -> {
-            try {
-                writer.flush();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }), 0, durabilityInMs / 2, TimeUnit.MILLISECONDS);
-        final KeyValueStore keyValueStore = new KeyValueStore(underlyingMap, writer);
+        final KeyValueStore keyValueStore;
+        if (durabilityInMs > 0) {
+            writer = new BufferedWriter(osWriter, ((Long) bufferSize).intValue());
+            flushService.scheduleAtFixedRate(new Thread(() -> {
+                try {
+                    writer.flush();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }), 0, durabilityInMs / 2, TimeUnit.MILLISECONDS);
+            keyValueStore = new KeyValueStore(underlyingMap, writer);
+        } else {
+            writer = new BufferedWriter(osWriter, 4096);
+            keyValueStore = new InstantlyDurableKVStore(underlyingMap, writer);
+        }
         final Undertow server = Undertow
                 .builder()
                 .addHttpListener(8000, "localhost")
