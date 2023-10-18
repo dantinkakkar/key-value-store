@@ -9,11 +9,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Map;
-import java.util.concurrent.ScheduledExecutorService;
 
 public class InstantlyDurableKeyValueStore extends KeyValueStore {
-    public InstantlyDurableKeyValueStore(Map<String, Pair<Long, String>> underlyingStoreImpl, BufferedWriter writer, ScheduledExecutorService flushService, long flushDuration) {
-        super(underlyingStoreImpl, writer, flushService, flushDuration);
+    public InstantlyDurableKeyValueStore(Map<String, Pair<Long, String>> underlyingStoreImpl, long flushDuration) throws IOException {
+        super(underlyingStoreImpl, flushDuration);
     }
 
     @Override
@@ -30,5 +29,10 @@ public class InstantlyDurableKeyValueStore extends KeyValueStore {
         writer = new BufferedWriter(new OutputStreamWriter(Files.newOutputStream(
                 Path.of("store"), StandardOpenOption.APPEND, StandardOpenOption.DSYNC
         )), 100);
+    }
+
+    @Override
+    public void close() throws IOException {
+        writer.close();
     }
 }

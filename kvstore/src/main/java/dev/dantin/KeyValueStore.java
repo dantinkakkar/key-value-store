@@ -16,7 +16,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-public class KeyValueStore implements FlushStrategy {
+public class KeyValueStore {
 
     private Map<String, Pair<Long, String>> underlyingStore;
     protected BufferedWriter writer;
@@ -27,15 +27,12 @@ public class KeyValueStore implements FlushStrategy {
 
     public KeyValueStore(
             final Map<String, Pair<Long, String>> underlyingStoreImpl,
-            final BufferedWriter writer,
-            final ScheduledExecutorService flushService,
             final long flushDuration
-    ) {
+    ) throws IOException {
         this.underlyingStore = underlyingStoreImpl;
-        this.writer = writer;
-        this.flushService = flushService;
         this.appendCount = 0;
         this.flushDuration = flushDuration;
+        initWalWriter();
     }
 
     synchronized public void writeValue(String key, String value, long time) {
@@ -65,6 +62,11 @@ public class KeyValueStore implements FlushStrategy {
         return underlyingStore.get(key).getValue();
     }
 
+    public void close() throws IOException {
+        writer.close();
+        flushService.close();
+    }
+
     private void writeToSSTable() throws IOException {
         if (appendCount == MAX_APPEND_COUNT) {
             final BufferedWriter fileWriter = new BufferedWriter(new OutputStreamWriter(Files.newOutputStream(
@@ -86,15 +88,16 @@ public class KeyValueStore implements FlushStrategy {
             wal.createNewFile();
             initWalWriter();
             appendCount = 0;
+            underlyingStore = new ConcurrentHashMap<>();
         }
     }
 
     protected void initWalWriter() throws IOException {
-        final Long bufSize = flushDuration * 3140000 < 0 ? Integer.MAX_VALUE - 8 : flushDuration * 3140000;
-        flushService.shutdownNow();
+        final long bufSize = flushDuration * 3140000 < 0 ? Integer.MAX_VALUE - 8 : flushDuration * 3140000;
+        if (flushService != null) flushService.shutdownNow();
         writer = new BufferedWriter(new OutputStreamWriter(Files.newOutputStream(
                 Path.of("store"), StandardOpenOption.APPEND, StandardOpenOption.DSYNC
-        )), bufSize.intValue());
+        )), (int) bufSize);
         flushService = Executors.newSingleThreadScheduledExecutor();
         flushService.scheduleAtFixedRate(new Thread(() -> {
             try {
@@ -104,4 +107,6 @@ public class KeyValueStore implements FlushStrategy {
             }
         }), 0, flushDuration, TimeUnit.MILLISECONDS);
     }
+
+    protected void doWithWriter(BufferedWriter writer) { }
 }
